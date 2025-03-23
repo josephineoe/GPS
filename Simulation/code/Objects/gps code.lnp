@@ -1,0 +1,3 @@
+".\Objects\main.obj" 
+TO ".\Objects\gps code" 
+PRINT(".\Listings\gps code.m51") RAMSIZE(256) 

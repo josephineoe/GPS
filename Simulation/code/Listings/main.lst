@@ -1,0 +1,232 @@
+C51 COMPILER V9.54   MAIN                                                                  01/16/2024 23:15:16 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND P
+                    -RINT(.\Listings\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REG52.h>
+   2          #include "uart.c"
+   3          
+   4          //宏定义
+   5          #define LCM_Data  P0      //将P0口定义为LCM_Data
+   6          #define uchar unsigned char 
+   7          #define uint  unsigned int
+   8          
+   9          //1602的控制脚
+  10          sbit lcd1602_rs=P2^7;
+  11          sbit lcd1602_rw=P2^6;
+  12          sbit lcd1602_en=P2^5;
+  13          
+  14          #define RsBuf_N   800
+  15          unsigned char xdata RsBuf[RsBuf_N]; //定义串口接收数据缓冲区
+  16          uchar code sousuo[]="GPS Searching...";
+  17          uint RsPoint;
+  18          bit dis_flag=0;
+  19          unsigned long weidunum=0;
+  20          unsigned long jingdunum=0;
+  21          //==================================================================================================
+  22          //=======================================LCD1602====================================================
+  23          //==================================================================================================
+  24          //----------------延时函数，后面经常调用----------------------
+  25          void delay(uint xms)//延时函数，有参函数
+  26          {
+  27   1        uint x,y;
+  28   1        for(x=xms;x>0;x--)
+  29   1         for(y=10;y>0;y--);
+  30   1      }
+  31          
+  32          //--------------------------写指令---------------------------
+  33          void write_1602com(uchar com)//****液晶写入指令函数****
+  34          {
+  35   1        lcd1602_rs=0;//数据/指令选择置为指令
+  36   1        lcd1602_rw=0; //读写选择置为写
+  37   1        P0=com;//送入数据
+  38   1        delay(1);
+  39   1        lcd1602_en=1;//拉高使能端，为制造有效的下降沿做准备
+  40   1        delay(1);
+  41   1        lcd1602_en=0;//en由高变低，产生下降沿，液晶执行命令
+  42   1      }
+  43          
+  44          //-------------------------写数据-----------------------------
+  45          void write_1602dat(uchar dat)//***液晶写入数据函数****
+  46          {
+  47   1        lcd1602_rs=1;//数据/指令选择置为数据
+  48   1        lcd1602_rw=0; //读写选择置为写
+  49   1        P0=dat;//送入数据
+  50   1        delay(1);
+  51   1        lcd1602_en=1; //en置高电平，为制造下降沿做准备
+  52   1        delay(1);
+  53   1        lcd1602_en=0; //en由高变低，产生下降沿，液晶执行命令
+  54   1      }
+C51 COMPILER V9.54   MAIN                                                                  01/16/2024 23:15:16 PAGE 2   
+
+  55          
+  56          //-------------------------初始化-------------------------
+  57          void lcd_init(void)
+  58          {
+  59   1        uchar i;
+  60   1        write_1602com(0x38);//设置液晶工作模式，意思：16*2行显示，5*7点阵，8位数据
+  61   1        write_1602com(0x0c);//开显示不显示光标
+  62   1        write_1602com(0x06);//整屏不移动，光标自动右移
+  63   1        write_1602com(0x01);//清显示
+  64   1        delay(1000);
+  65   1        write_1602com(0x80);
+  66   1        for(i=0;i<16;i++)
+  67   1        write_1602dat(sousuo[i]);
+  68   1      }
+  69          
+  70          //  通讯中断接收程序   中断函数无返回值
+  71          void uart_rx(void)  interrupt 4 using 3   
+  72          {
+  73   1        EA=0; 
+  74   1          if((RsPoint<RsBuf_N)&&RI) //必须判断RI是否为1
+  75   1          {
+  76   2            RI=0;
+  77   2          if(SBUF=='$')
+  78   2          RsPoint=0;
+  79   2            RsBuf[RsPoint++]=SBUF;
+  80   2          }
+  81   1        EA=1;
+  82   1      }
+  83          //==============================主函数===============================
+  84          void main(void)
+  85          {
+  86   1        uint i;
+  87   1        uchar shi;
+  88   1        lcd_init();
+  89   1        Uart_init();
+  90   1        for(i=0;i<RsBuf_N;i++)
+  91   1        RsBuf[i]='0';
+  92   1        while(1)
+  93   1        {
+  94   2             if(RsBuf[0]=='$'&&RsBuf[1]=='G'&&RsBuf[2]=='P'&&RsBuf[3]=='G'&&RsBuf[4]=='G'&&RsBuf[5]=='A'&&RsBuf[44
+             -]!='0')
+  95   2             {
+  96   3            if(RI==0&&((RsBuf[30]-48)*100+(RsBuf[31]-48)*10+(RsBuf[32]-48))>=0&&((RsBuf[30]-48)*100+(RsBuf[31]-48)*
+             -10+(RsBuf[32]-48))<=180)
+  97   3            {
+  98   4              TR0=1;
+  99   4              if(dis_flag==0)
+ 100   4              { 
+ 101   5                write_1602com(0x80);
+ 102   5                write_1602dat('T');
+ 103   5                write_1602dat('i');
+ 104   5                write_1602dat('m');
+ 105   5                write_1602dat('e');
+ 106   5                write_1602dat(':');
+ 107   5                shi=((RsBuf[7]-0x30)*10+(RsBuf[8]-0x30)+8)%24;
+ 108   5                write_1602dat(shi/10+0x30);
+ 109   5                write_1602dat(shi%10+0x30);
+ 110   5                write_1602dat('-');
+ 111   5                write_1602dat(RsBuf[9]);
+ 112   5                write_1602dat(RsBuf[10]);
+ 113   5                write_1602dat('-');
+ 114   5                write_1602dat(RsBuf[11]);
+C51 COMPILER V9.54   MAIN                                                                  01/16/2024 23:15:16 PAGE 3   
+
+ 115   5                write_1602dat(RsBuf[12]);
+ 116   5                write_1602dat(' ');
+ 117   5                write_1602dat(' ');
+ 118   5                write_1602dat(' ');
+ 119   5          
+ 120   5                write_1602com(0xc0);
+ 121   5                write_1602dat('W');
+ 122   5                write_1602dat('X');
+ 123   5                write_1602dat(':');
+ 124   5                write_1602dat(RsBuf[46]);
+ 125   5                write_1602dat(RsBuf[47]);  
+ 126   5                write_1602dat(' ');
+ 127   5                write_1602dat(' ');
+ 128   5      
+ 129   5                write_1602com(0xc7);
+ 130   5                write_1602dat('J');
+ 131   5                write_1602dat('D');
+ 132   5                write_1602dat(':');
+ 133   5                write_1602dat(RsBuf[49]);
+ 134   5                write_1602dat(RsBuf[50]);
+ 135   5                write_1602dat(RsBuf[51]);
+ 136   5                write_1602dat(RsBuf[52]);
+ 137   5                write_1602dat(' ');
+ 138   5                write_1602dat(' ');
+ 139   5              }
+ 140   4              else
+ 141   4              {
+ 142   5                weidunum= ((RsBuf[17]-48)*10000000+(RsBuf[18]-48)*1000000)
+ 143   5                      +(((((RsBuf[19]-48)*10)+(RsBuf[20]-48))*100000)/6)
+ 144   5                      +(((((RsBuf[22]-48)*1000)+((RsBuf[23]-48)*100)+((RsBuf[24]-48)*10)+(RsBuf[25]-48))*10)/6);   
+ 145   5                write_1602com(0x80);
+ 146   5                write_1602dat('W');
+ 147   5                write_1602dat('D');
+ 148   5                write_1602dat(':');
+ 149   5                write_1602dat(' ');
+ 150   5                write_1602dat(weidunum/10000000+0x30);
+ 151   5                write_1602dat(weidunum%10000000/1000000+0x30);
+ 152   5                write_1602dat('.');
+ 153   5                write_1602dat(weidunum%1000000/100000+0x30);
+ 154   5                write_1602dat(weidunum%100000/10000+0x30);
+ 155   5                write_1602dat(weidunum%10000/1000+0x30);
+ 156   5                write_1602dat(weidunum%1000/100+0x30);
+ 157   5                write_1602dat(weidunum%100/10+0x30);
+ 158   5                write_1602dat(weidunum%10+0x30);  
+ 159   5                write_1602dat(RsBuf[28]);
+ 160   5                write_1602dat(' ');
+ 161   5                write_1602dat(' ');
+ 162   5          
+ 163   5          
+ 164   5                jingdunum=  (((RsBuf[30]-48)*100000000)+((RsBuf[31]-48)*10000000)+((RsBuf[32]-48)*1000000))
+ 165   5                      +(((((RsBuf[33]-48)*10)+(RsBuf[34]-48))*100000)/6)
+ 166   5                      +(((((RsBuf[36]-48)*1000)+((RsBuf[37]-48)*100)+((RsBuf[38]-48)*10)+(RsBuf[39]-48))*10)/6);     
+ 167   5                write_1602com(0xc0);
+ 168   5                write_1602dat('J');
+ 169   5                write_1602dat('D');
+ 170   5                write_1602dat(':');
+ 171   5                write_1602dat(jingdunum/100000000+0x30);
+ 172   5                write_1602dat(jingdunum%100000000/10000000+0x30);
+ 173   5                write_1602dat(jingdunum%10000000/1000000+0x30);
+ 174   5                write_1602dat('.');
+ 175   5                write_1602dat(jingdunum%1000000/100000+0x30);
+ 176   5                write_1602dat(jingdunum%100000/10000+0x30);
+C51 COMPILER V9.54   MAIN                                                                  01/16/2024 23:15:16 PAGE 4   
+
+ 177   5                write_1602dat(jingdunum%10000/1000+0x30);
+ 178   5                write_1602dat(jingdunum%1000/100+0x30);
+ 179   5                write_1602dat(jingdunum%100/10+0x30);
+ 180   5                write_1602dat(jingdunum%10+0x30);   
+ 181   5                write_1602dat(RsBuf[42]);
+ 182   5                write_1602dat(' ');
+ 183   5                write_1602dat(' ');
+ 184   5              } 
+ 185   4            }
+ 186   3          }
+ 187   2        }
+ 188   1      }
+ 189          void T0_time() interrupt 1
+ 190          {
+ 191   1        uchar mm;
+ 192   1        TH0=0x4b;
+ 193   1        TL0=0xff;
+ 194   1        mm++;
+ 195   1        if(mm>=60)
+ 196   1        {
+ 197   2          mm=0;
+ 198   2          dis_flag=!dis_flag;
+ 199   2        }
+ 200   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1947    ----
+   CONSTANT SIZE    =     17    ----
+   XDATA SIZE       =    800    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     10       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
